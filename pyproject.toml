@@ -2,7 +2,7 @@
 name = "speaker-diarization"
 version = "0.1.0"
 description = ""
-authors = ["Jared Wuliger <hello@jaredwuliger.com>"]
+authors = ["Jared Wuliger <jwuliger.dev@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
