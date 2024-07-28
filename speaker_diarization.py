@@ -21,7 +21,9 @@ from pydub import AudioSegment
 
 
 class SpeakerDiarizationTranscriber:
-    def __init__(self, min_speaker_count=2, max_speaker_count=10, language_code="en-US"):
+    def __init__(
+        self, min_speaker_count=2, max_speaker_count=10, language_code="en-US"
+    ):
         """
         Initialize the SpeakerDiarizationTranscriber.
 
@@ -46,7 +48,7 @@ class SpeakerDiarizationTranscriber:
         Returns:
         tuple: (sample_rate, channels)
         """
-        with wave.open(wav_file, 'rb') as wav:
+        with wave.open(wav_file, "rb") as wav:
             return wav.getframerate(), wav.getnchannels()
 
     def convert_to_mono(self, input_file, output_file):
@@ -90,10 +92,12 @@ class SpeakerDiarizationTranscriber:
 
             if normalized_speaker != current_speaker:
                 if current_speaker is not None:
-                    transcript.append({
-                        "speaker": current_speaker,
-                        "transcription": current_transcription.strip()
-                    })
+                    transcript.append(
+                        {
+                            "speaker": current_speaker,
+                            "transcription": current_transcription.strip(),
+                        }
+                    )
                 current_speaker = normalized_speaker
                 current_transcription = word_info.word + " "
             else:
@@ -101,15 +105,20 @@ class SpeakerDiarizationTranscriber:
 
         # Add the last speaker's transcription
         if current_speaker is not None:
-            transcript.append({
-                "speaker": current_speaker,
-                "transcription": current_transcription.strip()
-            })
+            transcript.append(
+                {
+                    "speaker": current_speaker,
+                    "transcription": current_transcription.strip(),
+                }
+            )
 
         # Combine consecutive entries from the same speaker
         combined_transcript = []
         for entry in transcript:
-            if combined_transcript and combined_transcript[-1]["speaker"] == entry["speaker"]:
+            if (
+                combined_transcript
+                and combined_transcript[-1]["speaker"] == entry["speaker"]
+            ):
                 combined_transcript[-1]["transcription"] += " " + \
                     entry["transcription"]
             else:
@@ -121,8 +130,8 @@ class SpeakerDiarizationTranscriber:
         """
         Perform speaker diarization on the given audio file.
 
-        This method converts the audio to mono if necessary, uploads the audio file 
-        to a temporary Google Cloud Storage bucket, then uses the GCS URI to perform 
+        This method converts the audio to mono if necessary, uploads the audio file
+        to a temporary Google Cloud Storage bucket, then uses the GCS URI to perform
         speaker diarization using the Google Cloud Speech-to-Text API.
         It supports large audio files by using the long-running recognition method.
         The sample rate is automatically detected from the WAV file.
@@ -182,7 +191,8 @@ class SpeakerDiarizationTranscriber:
         try:
             # Start long-running recognition operation
             operation = self.speech_client.long_running_recognize(
-                config=config, audio=audio)
+                config=config, audio=audio
+            )
 
             print("\nProcessing audio. This may take several minutes for large files.")
             while not operation.done():
@@ -204,8 +214,10 @@ class SpeakerDiarizationTranscriber:
             print(formatted_transcription)
 
             # Save the transcription to a JSON file
-            output_filename = os.path.splitext(os.path.basename(speech_file))[
-                0] + "_transcription.json"
+            output_filename = (
+                os.path.splitext(os.path.basename(speech_file))[0]
+                + "_transcription.json"
+            )
             output_path = os.path.join("output", output_filename)
             os.makedirs("output", exist_ok=True)
             with open(output_path, "w") as f:

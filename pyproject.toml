@@ -10,6 +10,7 @@ python = "^3.11"
 google-cloud-speech = "^2.26.1"
 google-cloud-storage = "^2.18.0"
 pydub = "^0.25.1"
+black = "^24.4.2"
 
 
 [build-system]
