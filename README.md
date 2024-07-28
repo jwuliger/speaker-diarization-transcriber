@@ -20,7 +20,7 @@ Speaker Diarization Transcriber is a Python tool that leverages Google Cloud Spe
 ## Installation
 
 1. Clone this repository:
-git clone https://github.com/yourusername/speaker-diarization-transcriber.git
+git clone https://github.com/jwuliger/speaker-diarization-transcriber.git
 cd speaker-diarization-transcriber
 2. Install dependencies:
 poetry install
@@ -30,16 +30,30 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
 ## Usage
 
 1. Place your audio file in the `audio` directory.
-2. Run the script:
-python speaker_diarization.py
+2. Use the `SpeakerDiarizationTranscriber` class in your Python script:
+from speaker_diarization import SpeakerDiarizationTranscriber
+transcriber = SpeakerDiarizationTranscriber()
+result = transcriber.perform_diarization("audio/your_audio_file.wav")
+if result:
+print(result)
+else:
+print("Diarization failed. Please check your audio file and try again.")
 3. The transcription result will be printed to the console and saved as a JSON file in the `output` directory.
+4. Check the `output` directory for the JSON file named `<input_filename>_transcription.json`.
 
 ## Configuration
 
-You can modify the following parameters in `speaker_diarization.py`:
+You can customize the `SpeakerDiarizationTranscriber` by passing arguments to its constructor:
 
-- `min_speaker_count` and `max_speaker_count` in the `diarization_config`
-- `language_code` in the `config` object
+Here's the code formatted in Markdown:
+
+```python
+transcriber = SpeakerDiarizationTranscriber(
+    min_speaker_count=2,
+    max_speaker_count=10,
+    language_code="en-US"
+)
+```
 
 ## Contributing
 
