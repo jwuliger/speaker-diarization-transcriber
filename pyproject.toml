@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "speaker-diarization"
+version = "0.1.0"
+description = ""
+authors = ["Jared Wuliger <hello@jaredwuliger.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+google-cloud-speech = "^2.26.1"
+google-cloud-storage = "^2.18.0"
+pydub = "^0.25.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
