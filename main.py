@@ -82,7 +82,8 @@ class SpeakerDiarizationTranscriber:
             print("Converting audio to mono...")
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                 speech_file = self.audio_service.convert_to_mono(
-                    speech_file, temp_file.name)
+                    speech_file, temp_file.name
+                )
             print(f"Converted to mono: {speech_file}")
 
         # Create a unique bucket name
@@ -92,7 +93,8 @@ class SpeakerDiarizationTranscriber:
         try:
             # Upload the audio file to GCS
             gcs_uri = self.cloud_storage_service.upload_file(
-                speech_file, bucket_name, blob_name)
+                speech_file, bucket_name, blob_name
+            )
             print(f"Audio file uploaded to: {gcs_uri}")
 
             # Perform transcription
@@ -140,18 +142,24 @@ class SpeakerDiarizationTranscriber:
 
         # Prepare the speaker-level output
         speaker_level_output = self.transcription_service.format_transcription(
-            words_info)
+            words_info
+        )
 
         # Refine speaker tags
         refined_speaker_level_output = self.transcription_service.refine_speaker_tags(
-            speaker_level_output)
+            speaker_level_output
+        )
 
         # Save the word-level output to a JSON file
-        word_output_filename = f"{os.path.splitext(original_filename)[0]}_word_level_transcription.json"
+        word_output_filename = (
+            f"{os.path.splitext(original_filename)[0]}_word_level_transcription.json"
+        )
         save_json(word_level_output, word_output_filename)
 
         # Save the refined speaker-level output to a JSON file
-        speaker_output_filename = f"{os.path.splitext(original_filename)[0]}_speaker_level_transcription.json"
+        speaker_output_filename = (
+            f"{os.path.splitext(original_filename)[0]}_speaker_level_transcription.json"
+        )
         save_json(refined_speaker_level_output, speaker_output_filename)
 
         return word_level_output, refined_speaker_level_output
@@ -166,7 +174,8 @@ if __name__ == "__main__":
 
     # Perform diarization
     word_result, speaker_result = transcriber.perform_diarization(
-        speech_file, use_cache=True)
+        speech_file, use_cache=True
+    )
 
     if word_result and speaker_result:
         print("\nFull word-level transcription result:")

@@ -24,7 +24,9 @@ class SpeechToTextService:
         self.speech_client = speech.SpeechClient()
         self.language_code = language_code
 
-    def transcribe_audio(self, gcs_uri, sample_rate, min_speaker_count, max_speaker_count):
+    def transcribe_audio(
+        self, gcs_uri, sample_rate, min_speaker_count, max_speaker_count
+    ):
         """
         Transcribe audio using Google Cloud Speech-to-Text API with speaker diarization.
 
@@ -42,12 +44,14 @@ class SpeechToTextService:
         """
         audio = speech.RecognitionAudio(uri=gcs_uri)
         config = self._get_recognition_config(
-            sample_rate, min_speaker_count, max_speaker_count)
+            sample_rate, min_speaker_count, max_speaker_count
+        )
 
         print("Sending request to Google Cloud Speech-to-Text API...")
         try:
             operation = self.speech_client.long_running_recognize(
-                config=config, audio=audio)
+                config=config, audio=audio
+            )
 
             print("\nProcessing audio. This may take several minutes for large files.")
             while not operation.done():
@@ -62,7 +66,9 @@ class SpeechToTextService:
             print(f"\nError occurred: {e}")
             raise
 
-    def _get_recognition_config(self, sample_rate, min_speaker_count, max_speaker_count):
+    def _get_recognition_config(
+        self, sample_rate, min_speaker_count, max_speaker_count
+    ):
         """
         Create the recognition config for the Speech-to-Text API.
 
