@@ -84,23 +84,54 @@ class SpeakerDiarizationTranscriber:
         current_utterance = []
         confidence_threshold = 0.8  # Confidence threshold for including words
 
+        def add_current_utterance():
+            if current_utterance:
+                utterance_text = " ".join(
+                    word["word"] for word in current_utterance
+                ).strip()
+                avg_confidence = sum(
+                    word["confidence"] for word in current_utterance
+                ) / len(current_utterance)
+
+                # Split questions and answers
+                if "?" in utterance_text:
+                    question, answer = utterance_text.split("?", 1)
+                    question += "?"
+
+                    transcript.append(
+                        {
+                            "speaker": f"speaker {current_speaker}",
+                            "text": question.strip(),
+                            "avg_confidence": avg_confidence,
+                        }
+                    )
+
+                    if answer.strip():
+                        transcript.append(
+                            {
+                                # Switch speaker for the answer
+                                "speaker": f"speaker {3 - current_speaker}",
+                                "text": answer.strip(),
+                                "avg_confidence": avg_confidence,
+                            }
+                        )
+                else:
+                    transcript.append(
+                        {
+                            "speaker": f"speaker {current_speaker}",
+                            "text": utterance_text,
+                            "avg_confidence": avg_confidence,
+                        }
+                    )
+
         for word_info in words_info:
             word = word_info.word
             speaker_tag = word_info.speaker_tag
             confidence = word_info.confidence
 
-            # Handle punctuation
-            if word in ".,!?":
-                if current_utterance:
-                    current_utterance[-1]["word"] += word
-                continue
-
             # Check if we're starting a new speaker's utterance
             if speaker_tag != current_speaker:
-                if current_utterance:
-                    self.add_utterance_to_transcript(
-                        transcript, current_speaker, current_utterance
-                    )
+                add_current_utterance()
                 current_speaker = speaker_tag
                 current_utterance = []
 
@@ -109,40 +140,14 @@ class SpeakerDiarizationTranscriber:
                 current_utterance.append({"word": word, "confidence": confidence})
 
         # Add the last utterance
-        if current_utterance:
-            self.add_utterance_to_transcript(
-                transcript, current_speaker, current_utterance
-            )
+        add_current_utterance()
 
         return transcript
 
-    def add_utterance_to_transcript(self, transcript, speaker, utterance):
-        """
-        Add an utterance to the transcript for a specific speaker.
-
-        Args:
-        transcript (list): The transcript list to update.
-        speaker (int): The speaker tag.
-        utterance (list): List of dictionaries containing words and their confidence scores.
-        """
-        utterance_text = " ".join(word_info["word"] for word_info in utterance)
-        avg_confidence = (
-            sum(word_info["confidence"] for word_info in utterance) / len(utterance)
-            if utterance
-            else 0
-        )
-
-        transcript.append(
-            {
-                "speaker": f"speaker {speaker}",
-                "text": utterance_text,
-                "avg_confidence": avg_confidence,
-            }
-        )
-
     def refine_speaker_tags(self, transcript):
         """
-        Refine speaker tags by alternating speakers for consecutive utterances.
+        Refine speaker tags by alternating speakers for consecutive utterances,
+        ensuring questions and answers are attributed to different speakers.
 
         Args:
         transcript (list): The original transcript with potentially incorrect speaker tags.
@@ -153,11 +158,23 @@ class SpeakerDiarizationTranscriber:
         refined_transcript = []
         current_speaker = 1
 
-        for utterance in transcript:
+        for i, utterance in enumerate(transcript):
             refined_utterance = utterance.copy()
-            refined_utterance["speaker"] = f"speaker {current_speaker}"
-            refined_transcript.append(refined_utterance)
-            current_speaker = 3 - current_speaker  # Alternate between 1 and 2
+
+            if utterance["text"].endswith("?"):
+                refined_utterance["speaker"] = f"speaker {current_speaker}"
+                refined_transcript.append(refined_utterance)
+                # Switch to the other speaker for the answer
+                current_speaker = 3 - current_speaker
+            else:
+                refined_utterance["speaker"] = f"speaker {current_speaker}"
+                refined_transcript.append(refined_utterance)
+
+                # Only switch speakers if the next utterance is not a continuation of the current one
+                if i + 1 < len(transcript) and not transcript[i + 1]["text"].startswith(
+                    ("and", "but", "or", "so")
+                ):
+                    current_speaker = 3 - current_speaker  # Alternate between 1 and 2
 
         return refined_transcript
 
@@ -174,6 +191,7 @@ class SpeakerDiarizationTranscriber:
         cache_file = os.path.join(cache_dir, f"{os.path.basename(speech_file)}.pickle")
         with open(cache_file, "wb") as f:
             pickle.dump(response, f)
+        print(f"Cache saved to: {cache_file}")
 
     def load_cache(self, speech_file):
         """
@@ -185,10 +203,20 @@ class SpeakerDiarizationTranscriber:
         Returns:
         The cached API response object if it exists, None otherwise.
         """
-        cache_file = os.path.join("cache", f"{os.path.basename(speech_file)}.pickle")
+        cache_dir = "cache"
+        cache_file = os.path.join(cache_dir, f"{os.path.basename(speech_file)}.pickle")
+        print(f"Looking for cache file: {cache_file}")
         if os.path.exists(cache_file):
-            with open(cache_file, "rb") as f:
-                return pickle.load(f)
+            print(f"Cache file found: {cache_file}")
+            try:
+                with open(cache_file, "rb") as f:
+                    cached_data = pickle.load(f)
+                print("Cache file successfully loaded.")
+                return cached_data
+            except Exception as e:
+                print(f"Error loading cache file: {e}")
+        else:
+            print(f"Cache file not found: {cache_file}")
         return None
 
     def perform_diarization(self, speech_file, use_cache=True):
@@ -211,19 +239,23 @@ class SpeakerDiarizationTranscriber:
         tuple: (word_level_output, speaker_level_output)
         """
         print(f"Processing file: {speech_file}")
+        print(f"Full path of speech file: {os.path.abspath(speech_file)}")
+
+        original_filename = os.path.basename(speech_file)
 
         # Check for cached result
+        cached_response = None
         if use_cache:
-            cached_response = self.load_cache(speech_file)
+            cached_response = self.load_cache(original_filename)
             if cached_response:
                 print("Using cached API response.")
                 response = cached_response
             else:
-                print("No cached response found. Proceeding with API call.")
+                print("No valid cached response found. Proceeding with API call.")
         else:
             print("Cache use disabled. Proceeding with API call.")
 
-        if not use_cache or not cached_response:
+        if not cached_response:
             # Get the sample rate and number of channels from the WAV file
             sample_rate, channels = self.get_wav_info(speech_file)
             print(f"Detected sample rate: {sample_rate} Hz, Channels: {channels}")
@@ -288,7 +320,7 @@ class SpeakerDiarizationTranscriber:
                 response = operation.result()
 
                 # Cache the response
-                self.save_cache(speech_file, response)
+                self.save_cache(original_filename, response)
 
             except exceptions.GoogleAPICallError as e:
                 print(f"\nError occurred: {e}")
@@ -337,8 +369,7 @@ class SpeakerDiarizationTranscriber:
 
         # Save the word-level output to a JSON file
         word_output_filename = (
-            os.path.splitext(os.path.basename(speech_file))[0]
-            + "_word_level_transcription.json"
+            os.path.splitext(original_filename)[0] + "_word_level_transcription.json"
         )
         word_output_path = os.path.join("output", word_output_filename)
         os.makedirs("output", exist_ok=True)
@@ -348,8 +379,7 @@ class SpeakerDiarizationTranscriber:
 
         # Save the refined speaker-level output to a JSON file
         speaker_output_filename = (
-            os.path.splitext(os.path.basename(speech_file))[0]
-            + "_speaker_level_transcription.json"
+            os.path.splitext(original_filename)[0] + "_speaker_level_transcription.json"
         )
         speaker_output_path = os.path.join("output", speaker_output_filename)
         with open(speaker_output_path, "w") as f:
