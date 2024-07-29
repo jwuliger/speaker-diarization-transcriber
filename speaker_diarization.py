@@ -5,8 +5,8 @@ This script defines a SpeakerDiarizationTranscriber class that performs speaker 
 on an audio file using Google Cloud Speech-to-Text API.
 It supports large audio files by uploading to Google Cloud Storage and using the long-running recognition method.
 The audio is converted to mono if necessary, and the sample rate is automatically detected from the WAV file.
-The output is a JSON-formatted transcription grouped by speakers, with normalized speaker labels,
-which is both printed to the console and saved as a JSON file.
+The output is a list of words with their corresponding speaker tags, which is both printed to the console
+and saved as a JSON file. An additional JSON file with speaker-grouped transcriptions is also saved.
 """
 
 import time
@@ -69,62 +69,55 @@ class SpeakerDiarizationTranscriber:
 
     def format_transcription(self, words_info):
         """
-        Format the diarization result into a JSON structure with normalized speaker labels.
+        Format the diarization result into a JSON structure with speaker and transcription.
 
         Args:
         words_info (list): List of word information from the diarization result.
 
         Returns:
-        str: JSON formatted string of the transcription with normalized speaker labels.
+        dict: Dictionary containing speaker-grouped transcriptions.
         """
-        transcript = []
+        transcript = {}
         current_speaker = None
-        current_transcription = ""
-        speaker_map = {}
-        next_speaker_id = 1
+        current_utterance = ""
 
         for word_info in words_info:
-            if word_info.speaker_tag not in speaker_map:
-                speaker_map[word_info.speaker_tag] = next_speaker_id
-                next_speaker_id += 1
+            word = word_info.word
+            speaker_tag = word_info.speaker_tag
 
-            normalized_speaker = speaker_map[word_info.speaker_tag]
+            # Handle punctuation
+            if word in ".,!?":
+                current_utterance += word
+                continue
 
-            if normalized_speaker != current_speaker:
+            # Check if we're starting a new speaker's utterance
+            if speaker_tag != current_speaker:
                 if current_speaker is not None:
-                    transcript.append(
-                        {
-                            "speaker": current_speaker,
-                            "transcription": current_transcription.strip(),
-                        }
+                    speaker_key = f"speaker {current_speaker}"
+                    if speaker_key not in transcript:
+                        transcript[speaker_key] = {"transcription": []}
+                    transcript[speaker_key]["transcription"].append(
+                        current_utterance.strip()
                     )
-                current_speaker = normalized_speaker
-                current_transcription = word_info.word + " "
+                current_speaker = speaker_tag
+                current_utterance = word + " "
             else:
-                current_transcription += word_info.word + " "
+                current_utterance += word + " "
 
-        # Add the last speaker's transcription
+        # Add the last utterance
         if current_speaker is not None:
-            transcript.append(
-                {
-                    "speaker": current_speaker,
-                    "transcription": current_transcription.strip(),
-                }
+            speaker_key = f"speaker {current_speaker}"
+            if speaker_key not in transcript:
+                transcript[speaker_key] = {"transcription": []}
+            transcript[speaker_key]["transcription"].append(current_utterance.strip())
+
+        # Join utterances for each speaker
+        for speaker in transcript:
+            transcript[speaker]["transcription"] = " ".join(
+                transcript[speaker]["transcription"]
             )
 
-        # Combine consecutive entries from the same speaker
-        combined_transcript = []
-        for entry in transcript:
-            if (
-                combined_transcript
-                and combined_transcript[-1]["speaker"] == entry["speaker"]
-            ):
-                combined_transcript[-1]["transcription"] += " " + \
-                    entry["transcription"]
-            else:
-                combined_transcript.append(entry)
-
-        return json.dumps(combined_transcript, indent=2)
+        return transcript
 
     def perform_diarization(self, speech_file):
         """
@@ -135,13 +128,13 @@ class SpeakerDiarizationTranscriber:
         speaker diarization using the Google Cloud Speech-to-Text API.
         It supports large audio files by using the long-running recognition method.
         The sample rate is automatically detected from the WAV file.
-        The result is saved as a JSON file in the 'output' directory.
+        The result is saved as two JSON files in the 'output' directory.
 
         Args:
         speech_file (str): Path to the audio file to be processed.
 
         Returns:
-        str: JSON formatted string of the transcription with normalized speaker labels, or None if an error occurred.
+        tuple: (word_level_output, speaker_level_output)
         """
         print(f"Processing file: {speech_file}")
 
@@ -203,32 +196,58 @@ class SpeakerDiarizationTranscriber:
 
             response = operation.result()
 
-            all_words = []
-            for result in response.results:
-                all_words.extend(result.alternatives[0].words)
+            # The transcript within each result is separate and sequential per result.
+            # However, the words list within an alternative includes all the words
+            # from all the results thus far. Thus, to get all the words with speaker
+            # tags, you only have to take the words list from the last result:
+            result = response.results[-1]
+            words_info = result.alternatives[0].words
 
-            # Format the transcription with normalized speaker labels
-            formatted_transcription = self.format_transcription(all_words)
+            # Prepare the word-level output
+            word_level_output = []
+            for word_info in words_info:
+                word_level_output.append(
+                    {"word": word_info.word, "speaker_tag": word_info.speaker_tag}
+                )
 
-            print("\nTranscription result:")
-            print(formatted_transcription)
+            # Prepare the speaker-level output
+            speaker_level_output = self.format_transcription(words_info)
 
-            # Save the transcription to a JSON file
-            output_filename = (
+            # Print the word-level output
+            print("\nWord-level transcription result:")
+            for item in word_level_output:
+                print(f"word: '{item['word']}', speaker_tag: {item['speaker_tag']}")
+
+            # Print the speaker-level output
+            print("\nSpeaker-level transcription result:")
+            print(json.dumps(speaker_level_output, indent=2))
+
+            # Save the word-level output to a JSON file
+            word_output_filename = (
                 os.path.splitext(os.path.basename(speech_file))[0]
-                + "_transcription.json"
+                + "_word_level_transcription.json"
             )
-            output_path = os.path.join("output", output_filename)
+            word_output_path = os.path.join("output", word_output_filename)
             os.makedirs("output", exist_ok=True)
-            with open(output_path, "w") as f:
-                json.dump(json.loads(formatted_transcription), f, indent=2)
-            print(f"\nTranscription saved to {output_path}")
+            with open(word_output_path, "w") as f:
+                json.dump(word_level_output, f, indent=2)
+            print(f"\nWord-level transcription saved to {word_output_path}")
 
-            return formatted_transcription
+            # Save the speaker-level output to a JSON file
+            speaker_output_filename = (
+                os.path.splitext(os.path.basename(speech_file))[0]
+                + "_speaker_level_transcription.json"
+            )
+            speaker_output_path = os.path.join("output", speaker_output_filename)
+            with open(speaker_output_path, "w") as f:
+                json.dump(speaker_level_output, f, indent=2)
+            print(f"Speaker-level transcription saved to {speaker_output_path}")
+
+            return word_level_output, speaker_level_output
 
         except exceptions.GoogleAPICallError as e:
             print(f"\nError occurred: {e}")
-            return None
+            return None, None
         finally:
             # Clean up: delete the GCS bucket and its contents
             bucket.delete(force=True)
@@ -248,10 +267,12 @@ if __name__ == "__main__":
     transcriber = SpeakerDiarizationTranscriber()
 
     # Perform diarization
-    result = transcriber.perform_diarization(speech_file)
+    word_result, speaker_result = transcriber.perform_diarization(speech_file)
 
-    if result:
-        print("\nFull transcription result:")
-        print(result)
+    if word_result and speaker_result:
+        print("\nFull word-level transcription result:")
+        print(json.dumps(word_result, indent=2))
+        print("\nFull speaker-level transcription result:")
+        print(json.dumps(speaker_result, indent=2))
     else:
         print("Diarization failed. Please check your audio file and try again.")
