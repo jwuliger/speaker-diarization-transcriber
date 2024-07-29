@@ -35,8 +35,6 @@ Speaker Diarization Transcriber is a Python tool that leverages Google Cloud Spe
 2. Use the `SpeakerDiarizationTranscriber` class in your Python script:
 
 ```python
-python
-Copy
 from speaker_diarization import SpeakerDiarizationTranscriber
 
 transcriber = SpeakerDiarizationTranscriber()
@@ -46,7 +44,6 @@ if word_result and speaker_result:
     print(json.dumps(speaker_result, indent=2))
 else:
     print("Diarization failed. Please check your audio file and try again.")
-
 ```
 
 1. The transcription results will be printed to the console and saved as JSON files in the `output` directory:
@@ -58,14 +55,11 @@ else:
 You can customize the `SpeakerDiarizationTranscriber` by passing arguments to its constructor:
 
 ```python
-python
-Copy
 transcriber = SpeakerDiarizationTranscriber(
     min_speaker_count=2,
     max_speaker_count=10,
     language_code="en-US"
 )
-
 ```
 
 ## Caching
@@ -73,10 +67,7 @@ transcriber = SpeakerDiarizationTranscriber(
 The tool implements caching to reduce API calls during development and testing. By default, caching is enabled. To disable caching:
 
 ```python
-python
-Copy
 word_result, speaker_result = transcriber.perform_diarization("audio/your_audio_file.wav", use_cache=False)
-
 ```
 
 Cache files are stored in the `cache` directory and named after the original audio file.
