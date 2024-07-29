@@ -36,7 +36,7 @@ Usage
 2. Run the main script using Poetry:
 
 ```python
-poetry run python main.p
+poetry run python main.py
 ```
 
 1. The transcription results will be printed to the console and saved as JSON files in the 'output' directory:
